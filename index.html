@@ -1,22 +1,365 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Plank Challenge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase App & Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyA7Erdbh8h7CDw34xS2kNDUq9Iy-DtLju8",
-  authDomain: "plank-challenge-aa6be.firebaseapp.com",
-  databaseURL: "https://plank-challenge-aa6be-default-rtdb.firebaseio.com",
-  projectId: "plank-challenge-aa6be",
-  storageBucket: "plank-challenge-aa6be.firebasestorage.app",
-  messagingSenderId: "325638997539",
-  appId: "1:325638997539:web:364ecd79c5eec660151396",
-  measurementId: "G-KRSY2HEEV3"
-};
+  <style>
+    body { background-color: #0b0b0d; color: #f3f4f6; -webkit-tap-highlight-color: transparent; }
+    .bg-card { background-color: #141418; border: 1px solid #27272a; }
+    .nav-btn.active { background-color: #dc2626; color: white; border-color: #ef4444; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4); }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center p-3 pb-24">
+  <div class="w-full max-w-md flex flex-col gap-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between py-2 border-b border-zinc-800">
+      <div>
+        <h1 class="text-2xl font-black text-white tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-fire text-red-600"></i> PLANK CHALLENGE
+        </h1>
+        <p class="text-xs text-zinc-400" id="currentDateDisplay"></p>
+      </div>
+      <div class="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-full text-xs font-semibold">
+        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+        <span id="headerLiveStatus">Live Sync</span>
+      </div>
+    </div>
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+    <!-- Navigation -->
+    <div class="grid grid-cols-4 gap-2">
+      <button onclick="switchTab('timer')" id="tab-timer" class="nav-btn active py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-zinc-800 bg-zinc-900 text-xs text-zinc-400 transition">
+        <i class="fa-solid fa-stopwatch text-base"></i> Timer
+      </button>
+      <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="nav-btn py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-zinc-800 bg-zinc-900 text-xs text-zinc-400 transition">
+        <i class="fa-solid fa-ranking-star text-base"></i> Rangliste
+      </button>
+      <button onclick="switchTab('trend')" id="tab-trend" class="nav-btn py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-zinc-800 bg-zinc-900 text-xs text-zinc-400 transition">
+        <i class="fa-solid fa-chart-line text-base"></i> Trend
+      </button>
+      <button onclick="switchTab('week')" id="tab-week" class="nav-btn py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-zinc-800 bg-zinc-900 text-xs text-zinc-400 transition">
+        <i class="fa-solid fa-calendar-week text-base"></i> Woche
+      </button>
+    </div>
+
+    <!-- TAB: TIMER & EINTRAGEN -->
+    <div id="content-timer" class="flex flex-col gap-4">
+      <div class="bg-card p-4 rounded-2xl">
+        <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">1. Person auswählen</div>
+        <div class="grid grid-cols-5 gap-2" id="userSelector"></div>
+      </div>
+
+      <div class="bg-card p-5 rounded-2xl flex flex-col items-center text-center">
+        <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">2. Zeit stoppen</div>
+        <div class="text-6xl font-mono font-black my-4 text-white tracking-tight" id="stopwatchDisplay">00:00</div>
+        <div class="flex gap-3 w-full mt-2">
+          <button onclick="startStopwatch()" id="btnStart" class="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-base shadow-lg shadow-red-950 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-play"></i> Start
+          </button>
+          <button onclick="finishStopwatch()" id="btnFinish" disabled class="flex-1 py-3.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl text-base flex items-center justify-center gap-2">
+            <i class="fa-solid fa-check"></i> Fertig
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-card p-4 rounded-2xl">
+        <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Oder Manuell eintragen</div>
+        <div class="flex items-center gap-2">
+          <input type="number" id="manualMin" placeholder="Min" min="0" class="w-1/2 bg-zinc-900 border border-zinc-800 text-white rounded-xl p-3 text-center text-lg font-bold">
+          <input type="number" id="manualSec" placeholder="Sek" min="0" max="59" class="w-1/2 bg-zinc-900 border border-zinc-800 text-white rounded-xl p-3 text-center text-lg font-bold">
+          <button onclick="saveManualTime()" class="px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm">
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: LEADERBOARD -->
+    <div id="content-leaderboard" class="hidden flex flex-col gap-4">
+      <div class="bg-card p-4 rounded-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold text-white uppercase tracking-wider">Tagesrangliste</h2>
+          <button onclick="shareWhatsApp()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow">
+            <i class="fa-brands fa-whatsapp"></i> Teilen
+          </button>
+        </div>
+        <div id="leaderboardList" class="flex flex-col gap-2"></div>
+      </div>
+    </div>
+
+    <!-- TAB: TREND -->
+    <div id="content-trend" class="hidden flex flex-col gap-3">
+      <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider px-1">Persönliche Verbesserung</div>
+      <div id="trendList" class="flex flex-col gap-2"></div>
+    </div>
+
+    <!-- TAB: WOCHE -->
+    <div id="content-week" class="hidden flex flex-col gap-3">
+      <div class="bg-card p-4 rounded-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-bold text-white uppercase tracking-wider">Wochenstatistik</h2>
+          <button onclick="shareWeekWhatsApp()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow">
+            <i class="fa-brands fa-whatsapp"></i> Wochenbericht
+          </button>
+        </div>
+        <div id="weekList" class="flex flex-col gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA7Erdbh8h7CDw34xSZkNDUq9Iy-DtLju8",
+      authDomain: "plank-challenge-aa6be.firebaseapp.com",
+      databaseURL: "https://plank-challenge-aa6be-default-rtdb.firebaseio.com",
+      projectId: "plank-challenge-aa6be",
+      storageBucket: "plank-challenge-aa6be.firebasestorage.app",
+      messagingSenderId: "325638997539",
+      appId: "1:325638997539:web:364ecd79c5eec660151396",
+      measurementId: "G-KRSY2HEEV3"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const scoresRef = database.ref('plank_scores');
+
+    const USERS = ["Mama", "Tobi", "Lena", "Christina", "Natali"];
+    let selectedUser = "Tobi";
+    let timerInterval = null, seconds = 0, isRunning = false;
+    let globalDB = {};
+
+    function todayKey() { return new Date().toISOString().split('T')[0]; }
+    function formatTime(s) {
+      const m = Math.floor(s / 60); const rem = s % 60;
+      return `${String(m).padStart(2,'0')}:${String(rem).padStart(2,'0')}`;
+    }
+
+    scoresRef.on('value', (snapshot) => {
+      globalDB = snapshot.val() || {};
+      renderLeaderboard();
+      renderTrend();
+      renderWeek();
+    });
+
+    function initUI() {
+      const today = new Date();
+      document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+      const sel = document.getElementById('userSelector');
+      sel.innerHTML = '';
+      USERS.forEach(u => {
+        const btn = document.createElement('button');
+        btn.onclick = () => selectUser(u);
+        btn.id = `user-btn-${u}`;
+        btn.className = `p-2.5 rounded-xl border flex flex-col items-center gap-1 font-bold text-xs transition ${u === selectedUser ? 'border-red-600 bg-red-950/40 text-white' : 'border-zinc-800 bg-zinc-900 text-zinc-400'}`;
+        btn.innerHTML = `<div class="w-8 h-8 rounded-full ${u === selectedUser ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-300'} flex items-center justify-center text-xs font-black">${u[0]}</div><span class="truncate w-full text-center">${u}</span>`;
+        sel.appendChild(btn);
+      });
+      renderLeaderboard();
+      renderTrend();
+      renderWeek();
+    }
+
+    function selectUser(u) {
+      selectedUser = u;
+      initUI();
+    }
+
+    function switchTab(t) {
+      ['timer', 'leaderboard', 'trend', 'week'].forEach(tab => {
+        document.getElementById(`content-${tab}`).classList.toggle('hidden', tab !== t);
+        const b = document.getElementById(`tab-${tab}`);
+        if(tab === t) {
+          b.className = 'nav-btn active py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-red-500 bg-red-600 text-xs text-white transition shadow-lg shadow-red-950';
+        } else {
+          b.className = 'nav-btn py-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-zinc-800 bg-zinc-900 text-xs text-zinc-400 transition';
+        }
+      });
+      if(t === 'leaderboard') renderLeaderboard();
+      if(t === 'trend') renderTrend();
+      if(t === 'week') renderWeek();
+    }
+
+    function startStopwatch() {
+      if(!isRunning) {
+        isRunning = true;
+        seconds = 0;
+        document.getElementById('btnStart').innerHTML = '<i class="fa-solid fa-pause"></i> Pause';
+        document.getElementById('btnFinish').disabled = false;
+        document.getElementById('btnFinish').className = 'flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-base flex items-center justify-center gap-2 shadow-lg';
+        timerInterval = setInterval(() => {
+          seconds++;
+          document.getElementById('stopwatchDisplay').innerText = formatTime(seconds);
+        }, 1000);
+      } else {
+        clearInterval(timerInterval);
+        isRunning = false;
+        document.getElementById('btnStart').innerHTML = '<i class="fa-solid fa-play"></i> Weiter';
+      }
+    }
+
+    function finishStopwatch() {
+      clearInterval(timerInterval);
+      isRunning = false;
+      document.getElementById('btnStart').innerHTML = '<i class="fa-solid fa-play"></i> Start';
+      document.getElementById('btnFinish').disabled = true;
+      document.getElementById('btnFinish').className = 'flex-1 py-3.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl text-base flex items-center justify-center gap-2';
+      if(seconds > 0) {
+        saveTime(selectedUser, seconds);
+        triggerFireworks();
+      }
+    }
+
+    function saveManualTime() {
+      const min = parseInt(document.getElementById('manualMin').value) || 0;
+      const sec = parseInt(document.getElementById('manualSec').value) || 0;
+      const total = (min * 60) + sec;
+      if(total > 0) {
+        saveTime(selectedUser, total);
+        document.getElementById('manualMin').value = '';
+        document.getElementById('manualSec').value = '';
+        triggerFireworks();
+      }
+    }
+
+    function saveTime(user, timeInSec) {
+      const t = todayKey();
+      const currentBest = (globalDB[t] && globalDB[t][user]) || 0;
+      const newScore = Math.max(currentBest, timeInSec);
+      scoresRef.child(t).child(user).set(newScore);
+      switchTab('leaderboard');
+    }
+
+    function triggerFireworks() {
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } }), 250);
+        setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } }), 400);
+      }
+    }
+
+    function renderLeaderboard() {
+      const t = todayKey();
+      const todayData = globalDB[t] || {};
+      const sorted = USERS.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
+      const list = document.getElementById('leaderboardList');
+      if(!list) return;
+      list.innerHTML = '';
+      sorted.forEach((item, idx) => {
+        const medal = idx === 0 && item.time > 0 ? '🥇' : idx === 1 && item.time > 0 ? '🥈' : idx === 2 && item.time > 0 ? '🥉' : `#${idx+1}`;
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800';
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-6 text-center font-bold text-sm text-zinc-400">${medal}</span>
+            <div class="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-xs">${item.name[0]}</div>
+            <span class="font-bold text-sm text-zinc-200">${item.name}</span>
+          </div>
+          <span class="font-mono font-bold text-sm ${item.time > 0 ? 'text-red-500' : 'text-zinc-600'}">${item.time > 0 ? formatTime(item.time) + ' Min' : 'Offen'}</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function renderTrend() {
+      const today = new Date();
+      const yDate = new Date(today); yDate.setDate(yDate.getDate() - 1);
+      const tKey = todayKey();
+      const yKey = yDate.toISOString().split('T')[0];
+      const todayData = globalDB[tKey] || {};
+      const yesterdayData = globalDB[yKey] || {};
+      const list = document.getElementById('trendList');
+      if(!list) return;
+      list.innerHTML = '';
+      USERS.forEach(u => {
+        const cur = todayData[u] || 0;
+        const prev = yesterdayData[u] || 0;
+        const diff = cur - prev;
+        let diffBadge = '<span class="text-xs text-zinc-500">-</span>';
+        if(cur > 0 && prev > 0) {
+          if(diff > 0) diffBadge = `<span class="text-xs font-bold text-emerald-400">▲ +${diff}s</span>`;
+          else if(diff < 0) diffBadge = `<span class="text-xs font-bold text-red-400">▼ ${diff}s</span>`;
+          else diffBadge = `<span class="text-xs text-zinc-400">±0s</span>`;
+        }
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl bg-card flex items-center justify-between';
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-xs">${u[0]}</div>
+            <div>
+              <div class="font-bold text-sm text-white">${u}</div>
+              <div class="text-[11px] text-zinc-400">Heute: ${cur > 0 ? formatTime(cur) : 'noch nicht'}</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-[11px] text-zinc-500">vs. Gestern</div>
+            ${diffBadge}
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function renderWeek() {
+      const list = document.getElementById('weekList');
+      if(!list) return;
+      list.innerHTML = '';
+      const totals = USERS.map(u => {
+        let sum = 0;
+        Object.keys(globalDB).forEach(d => { sum += (globalDB[d][u] || 0); });
+        return { name: u, total: sum };
+      }).sort((a,b) => b.total - a.total);
+
+      totals.forEach((item, idx) => {
+        const medal = idx === 0 && item.total > 0 ? '🏆' : `#${idx+1}`;
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800';
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-6 text-center font-bold text-sm">${medal}</span>
+            <div class="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-xs">${item.name[0]}</div>
+            <span class="font-bold text-sm text-zinc-200">${item.name}</span>
+          </div>
+          <span class="font-mono font-bold text-sm text-red-500">${formatTime(item.total)} Min</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function shareWhatsApp() {
+      const t = todayKey();
+      const todayData = globalDB[t] || {};
+      const sorted = USERS.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
+      let text = `🔥 PLANK CHALLENGE - ${new Date().toLocaleDateString('de-DE')}\n\n`;
+      sorted.forEach((item, idx) => {
+        const m = idx === 0 && item.time > 0 ? '🥇' : idx === 1 && item.time > 0 ? '🥈' : idx === 2 && item.time > 0 ? '🥉' : `${idx+1}.`;
+        text += `${m} ${item.name}: ${item.time > 0 ? formatTime(item.time) + ' Min' : 'Offen'}\n`;
+      });
+      navigator.clipboard.writeText(text).then(() => alert('Tagesliste kopiert!'));
+    }
+
+    function shareWeekWhatsApp() {
+      const totals = USERS.map(u => {
+        let sum = 0;
+        Object.keys(globalDB).forEach(d => { sum += (globalDB[d][u] || 0); });
+        return { name: u, total: sum };
+      }).sort((a,b) => b.total - a.total);
+      let text = `🏆 PLANK CHALLENGE - WOCHENSTATISTIK 🏆\n\n`;
+      totals.forEach((item, idx) => {
+        const m = idx === 0 && item.total > 0 ? '🥇' : `${idx+1}.`;
+        text += `${m} ${item.name}: ${formatTime(item.total)} Min\n`;
+      });
+      navigator.clipboard.writeText(text).then(() => alert('Wochenstatistik kopiert!'));
+    }
+
+    initUI();
+  </script>
+</body>
+</html>
