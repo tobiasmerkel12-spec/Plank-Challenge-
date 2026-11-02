@@ -53,8 +53,13 @@
     <!-- TAB: TIMER & EINTRAGEN -->
     <div id="content-timer" class="flex flex-col gap-4">
       <div class="bg-card p-4 rounded-2xl">
-        <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">1. Person auswählen</div>
-        <div class="grid grid-cols-5 gap-2" id="userSelector"></div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-bold text-zinc-400 uppercase tracking-wider">1. Person auswählen</div>
+          <button onclick="addNewUserPrompt()" class="text-xs text-red-400 hover:text-red-300 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-user-plus"></i> Hinzufügen
+          </button>
+        </div>
+        <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="userSelector"></div>
       </div>
 
       <div class="bg-card p-5 rounded-2xl flex flex-col items-center text-center">
@@ -130,8 +135,10 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const scoresRef = database.ref('plank_scores');
+    const usersRef = database.ref('plank_users');
 
-    const USERS = ["Mama", "Tobi", "Lena", "Christina", "Natali"];
+    const DEFAULT_USERS = ["Mama", "Papa", "Tobi", "Lena", "Christina", "Natali"];
+    let usersList = [...DEFAULT_USERS];
     let selectedUser = "Tobi";
     let timerInterval = null, seconds = 0, isRunning = false;
     let globalDB = {};
@@ -142,6 +149,21 @@
       return `${String(m).padStart(2,'0')}:${String(rem).padStart(2,'0')}`;
     }
 
+    // Nutzer-Synchronisation über Firebase
+    usersRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data && Array.isArray(data) && data.length > 0) {
+        usersList = data;
+      } else {
+        usersRef.set(DEFAULT_USERS);
+      }
+      renderUserSelector();
+      renderLeaderboard();
+      renderTrend();
+      renderWeek();
+    });
+
+    // Score-Synchronisation
     scoresRef.on('value', (snapshot) => {
       globalDB = snapshot.val() || {};
       renderLeaderboard();
@@ -152,9 +174,18 @@
     function initUI() {
       const today = new Date();
       document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+      renderUserSelector();
+      renderLeaderboard();
+      renderTrend();
+      renderWeek();
+    }
+
+    function renderUserSelector() {
       const sel = document.getElementById('userSelector');
+      if (!sel) return;
       sel.innerHTML = '';
-      USERS.forEach(u => {
+      
+      usersList.forEach(u => {
         const btn = document.createElement('button');
         btn.onclick = () => selectUser(u);
         btn.id = `user-btn-${u}`;
@@ -162,14 +193,34 @@
         btn.innerHTML = `<div class="w-8 h-8 rounded-full ${u === selectedUser ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-300'} flex items-center justify-center text-xs font-black">${u[0]}</div><span class="truncate w-full text-center">${u}</span>`;
         sel.appendChild(btn);
       });
-      renderLeaderboard();
-      renderTrend();
-      renderWeek();
+
+      // Plus-Button zum Hinzufügen weiterer Personen direkt in der App
+      const addBtn = document.createElement('button');
+      addBtn.onclick = addNewUserPrompt;
+      addBtn.className = 'p-2.5 rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 hover:bg-zinc-800/60 text-zinc-400 hover:text-white flex flex-col items-center justify-center gap-1 text-xs font-bold transition';
+      addBtn.innerHTML = '<div class="w-8 h-8 rounded-full bg-zinc-800 text-zinc-300 flex items-center justify-center text-sm font-black"><i class="fa-solid fa-plus"></i></div><span class="truncate w-full text-center">Neu</span>';
+      sel.appendChild(addBtn);
+    }
+
+    function addNewUserPrompt() {
+      const name = prompt("Name der neuen Person:");
+      if (!name) return;
+      const cleanName = name.trim();
+      if (!cleanName) return;
+
+      if (!usersList.includes(cleanName)) {
+        usersList.push(cleanName);
+        usersRef.set(usersList);
+        selectedUser = cleanName;
+        renderUserSelector();
+      } else {
+        alert("Dieser Name existiert bereits!");
+      }
     }
 
     function selectUser(u) {
       selectedUser = u;
-      initUI();
+      renderUserSelector();
     }
 
     function switchTab(t) {
@@ -248,7 +299,7 @@
     function renderLeaderboard() {
       const t = todayKey();
       const todayData = globalDB[t] || {};
-      const sorted = USERS.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
+      const sorted = usersList.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
       const list = document.getElementById('leaderboardList');
       if(!list) return;
       list.innerHTML = '';
@@ -278,7 +329,7 @@
       const list = document.getElementById('trendList');
       if(!list) return;
       list.innerHTML = '';
-      USERS.forEach(u => {
+      usersList.forEach(u => {
         const cur = todayData[u] || 0;
         const prev = yesterdayData[u] || 0;
         const diff = cur - prev;
@@ -311,7 +362,7 @@
       const list = document.getElementById('weekList');
       if(!list) return;
       list.innerHTML = '';
-      const totals = USERS.map(u => {
+      const totals = usersList.map(u => {
         let sum = 0;
         Object.keys(globalDB).forEach(d => { sum += (globalDB[d][u] || 0); });
         return { name: u, total: sum };
@@ -336,7 +387,7 @@
     function shareWhatsApp() {
       const t = todayKey();
       const todayData = globalDB[t] || {};
-      const sorted = USERS.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
+      const sorted = usersList.map(u => ({ name: u, time: todayData[u] || 0 })).sort((a,b) => b.time - a.time);
       let text = `🔥 PLANK CHALLENGE - ${new Date().toLocaleDateString('de-DE')}\n\n`;
       sorted.forEach((item, idx) => {
         const m = idx === 0 && item.time > 0 ? '🥇' : idx === 1 && item.time > 0 ? '🥈' : idx === 2 && item.time > 0 ? '🥉' : `${idx+1}.`;
@@ -346,7 +397,7 @@
     }
 
     function shareWeekWhatsApp() {
-      const totals = USERS.map(u => {
+      const totals = usersList.map(u => {
         let sum = 0;
         Object.keys(globalDB).forEach(d => { sum += (globalDB[d][u] || 0); });
         return { name: u, total: sum };
